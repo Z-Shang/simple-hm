@@ -5,16 +5,12 @@
 #include <cstddef>
 #include <expected>
 #include <format>
-#include <iostream>
 #include <map>
 #include <memory>
 #include <ranges>
 #include <set>
 #include <string>
 #include <tuple>
-#include <type_traits>
-#include <unordered_map>
-#include <unordered_set>
 #include <vector>
 
 namespace hm {
@@ -411,17 +407,10 @@ static inline auto ftv(const type_env_t &env) {
 }
 
 static inline auto apply(const subst_t &subst, const type_env_t &env) {
-  // with ranges:
   return env | std::views::transform([&subst](const auto &t) {
            return decltype(t){std::get<0>(t), apply(subst, std::get<1>(t))};
          }) |
          std::ranges::to<type_env_t>();
-  // without ranges:
-  // type_env_t res;
-  // for (const auto &[k, v] : env) {
-  //   res.emplace(k, apply(subst, v));
-  // }
-  // return res;
 }
 
 static inline auto generalize(const type_env_t &env,
@@ -567,17 +556,6 @@ static inline auto unify(const std::shared_ptr<type> &t1,
 static inline auto ti(std::shared_ptr<ti_state> &state, const type_env_t &env,
                       const std::shared_ptr<expr> &exp)
     -> std::expected<std::tuple<subst_t, std::shared_ptr<type>>, std::string> {
-  // std::cout << "Curr Env: " << std::endl;
-  // for (const auto &[k, v] : env) {
-  //   auto [tv, t] = v;
-  //   std::cout << "k: " << k << " v: [ ";
-  //   for (const auto &tv_ : tv) {
-  //     std::cout << tv_ << " ";
-  //   }
-  //   std::cout << "] " << t->to_string() << std::endl;
-  // }
-  // std::cout << "Expr: " << exp->to_string() << std::endl;
-
   switch (exp->kind_) {
   case expr::Prim:
     return std::tuple{subst_t{}, type::mkPrim(exp->v.prim_->type_)};
@@ -605,21 +583,14 @@ static inline auto ti(std::shared_ptr<ti_state> &state, const type_env_t &env,
     return ti(state, env, e1)
         .and_then([&](auto r) -> std::expected<decltype(r), std::string> {
           auto [s1, t1] = r;
-          // std::cout << "E1 type: " << t1->to_string() << std::endl;
           return ti(state, apply(s1, env), e2)
               .and_then(
                   [&](auto r_) -> std::expected<decltype(r_), std::string> {
                     auto [s2, t2] = r_;
-                    // std::cout << "E2 type: " << t2->to_string() << std::endl;
                     return unify(apply(s2, t1), type::mkFn(t2, tv))
                         .and_then(
                             [&](auto s3)
                                 -> std::expected<decltype(r_), std::string> {
-                              // std::cout << "Unified S: " << std::endl;
-                              // for (const auto &[k, v] : s3) {
-                              //   std::cout << k << " => " << v->to_string() <<
-                              //   std::endl;
-                              // }
                               return std::tuple{
                                   compose_subst(s3, compose_subst(s2, s1)),
                                   apply(s3, tv)};
